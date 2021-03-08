@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from "react";
 import MenuIcon from "@material-ui/icons/Menu";
+import ListItemIcon from '@material-ui/core/ListItemIcon';
+import ListItemSecondaryAction from '@material-ui/core/ListItemSecondaryAction';
+import Checkbox from '@material-ui/core/Checkbox';
+import DeleteIcon from '@material-ui/icons/Delete';
+
 import {
   AppBar,
   Button,
@@ -14,162 +19,14 @@ import {
   Typography,
 } from "@material-ui/core";
 import { Link, useHistory } from "react-router-dom";
-import { auth } from "./firebase";
-
-export function SignIn(props) {
-  let history = useHistory();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((u) => {
-      if (u) {
-        history.push("/app");
-      }
-      // do something
-    });
-
-    return unsubscribe;
-  }, [history]);
-
-  const handleSignIn = () => {
-    auth
-      .signInWithEmailAndPassword(email, password)
-      .then(() => {})
-      .catch((error) => {
-        alert(error.message);
-      });
-  };
-
-  return (
-    <div>
-      <AppBar position="static" color="primary">
-        <Toolbar>
-          <Typography variant="h6" color="inherit">
-            Sign In
-          </Typography>
-        </Toolbar>
-      </AppBar>
-      <div style={{ display: "flex", justifyContent: "center" }}>
-        <Paper style={{ width: "480px", marginTop: "50px", padding: "30px" }}>
-          <TextField
-            placeholder={"Email"}
-            fullWidth={true}
-            value={email}
-            onChange={(e) => {
-              setEmail(e.target.value);
-            }}
-          />
-          <TextField
-            type={"password"}
-            placeholder="Password"
-            fullWidth={true}
-            style={{ marginTop: "30px" }}
-            value={password}
-            onChange={(e) => {
-              setPassword(e.target.value);
-            }}
-          />
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginTop: "30px",
-            }}
-          >
-            <Typography>
-              Don't have an account? <Link to="/signup">Sign up!</Link>
-            </Typography>
-            <Button color="primary" variant="contained" onClick={handleSignIn}>
-              Sign in
-            </Button>
-          </div>
-        </Paper>
-      </div>
-    </div>
-  );
-}
-
-export function SignUp(props) {
-  let history = useHistory();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((u) => {
-      if (u) {
-        history.push("/app");
-      }
-      // do something
-    });
-
-    return unsubscribe;
-  }, [history]);
-
-  const handleSignUp = () => {
-    auth
-      .createUserWithEmailAndPassword(email, password)
-      .then(() => {})
-      .catch((error) => {
-        alert(error.message);
-      });
-  };
-
-  return (
-    <div>
-      <AppBar position="static" color="primary">
-        <Toolbar>
-          <Typography variant="h6" color="inherit">
-            Sign Up
-          </Typography>
-        </Toolbar>
-      </AppBar>
-      <div style={{ display: "flex", justifyContent: "center" }}>
-        <Paper style={{ width: "480px", marginTop: "50px", padding: "30px" }}>
-          <TextField
-            placeholder={"Email"}
-            fullWidth={true}
-            value={email}
-            onChange={(e) => {
-              setEmail(e.target.value);
-            }}
-          />
-          <TextField
-            type={"password"}
-            placeholder="Password"
-            fullWidth={true}
-            style={{ marginTop: "30px" }}
-            value={password}
-            onChange={(e) => {
-              setPassword(e.target.value);
-            }}
-          />
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginTop: "30px",
-            }}
-          >
-            <Typography>
-              Already have an account? <Link to="/">Sign in!</Link>
-            </Typography>
-            <Button color="primary" variant="contained" onClick={handleSignUp}>
-              Sign up
-            </Button>
-          </div>
-        </Paper>
-      </div>
-    </div>
-  );
-}
+import { auth, db } from "./firebase";
 
 export function App(props) {
   let history = useHistory();
-  const [drawer_open, setDrawerOpen] = useState(false);
+  
   const [user, setUser] = useState(null);
+  const [tasks, setTasks] = useState([]);
+  const [new_task, setNewTask] = useState("")
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((u) => {
@@ -183,6 +40,24 @@ export function App(props) {
     return unsubscribe;
   }, [history]);
 
+  useEffect(() => {
+    let unsubscribe;
+    if (user) {
+      unsubscribe = db.collection('users').doc(user.uid).collection('tasks').onSnapshot((snapshot) => {
+        const updated_tasks = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data()
+        updated_tasks.push({text: data.text, checked: data.checked, id: doc.id})
+      })
+      setTasks(updated_tasks)
+
+      })
+      
+    }
+    
+    return unsubscribe;
+  }, [user]);
+
   const handleSignOut = () => {
     auth
       .signOut()
@@ -194,6 +69,19 @@ export function App(props) {
       });
   };
 
+  const handleAddTask = () => {
+    db.collection('users').doc(user.uid).collection('tasks').add({text: new_task, checked: false}).then(() => {
+      setNewTask("")
+    })
+
+  }
+  const handleDeleteTask = (task_id) => {
+    db.collection('users').doc(user.uid).collection('tasks').doc(task_id).delete()
+  }
+  const handleCheckTask = (checked, task_id) => {
+    db.collection('users').doc(user.uid).collection('tasks').doc(task_id).update({checked: checked})
+  }
+
   if (!user) {
     return <div />;
   }
@@ -202,20 +90,11 @@ export function App(props) {
     <div>
       <AppBar position="static" color="primary">
         <Toolbar>
-          <IconButton
-            color="inherit"
-            onClick={() => {
-              setDrawerOpen(true);
-            }}
-          >
-            <MenuIcon />
-          </IconButton>
           <Typography
             variant="h6"
             color="inherit"
-            style={{ flexGrow: 1, marginLeft: "30px" }}
-          >
-            My App
+            style={{ flexGrow: 1, marginLeft: "30px" }}>
+            To Do List
           </Typography>
           <Typography color="inherit" style={{ marginRight: "30px" }}>
             Hi! {user.email}
@@ -225,18 +104,34 @@ export function App(props) {
           </Button>
         </Toolbar>
       </AppBar>
-      <Drawer
-        open={drawer_open}
-        onClose={() => {
-          setDrawerOpen(false);
-        }}
-      >
+      <div style={{display: "flex", justifyContent: "center", marginTop: 30}}>
+        <Paper style={{padding: 30, width: 700}}>
+        <Typography variant="h6">To Do List</Typography>
+        <div style={{display: "flex", marginTop: 30}}>
+          <TextField fullWidth={true} placeholder="Add a new task here" style={{marginRight: 30}} value={new_task} onChange={(e) => {setNewTask(e.target.value)}}/>
+          <Button variant="contained" color="primary" onClick={handleAddTask}>Add</Button>
+        </div>
         <List>
-          <ListItem button>
-            <ListItemText primary="Home" />
-          </ListItem>
-        </List>
-      </Drawer>
+          {tasks.map(value => (
+              <ListItem key={value.id}>
+                <ListItemIcon>
+                  <Checkbox
+                    checked={value.checked}
+                    onChange={(e, checked) => {handleCheckTask(checked, value.id)}}
+                    //checked={checked.indexOf(value) !== -1}
+                  />
+              </ListItemIcon>
+              <ListItemText primary={value.text} />
+              <ListItemSecondaryAction>
+                <IconButton onClick={() => {handleDeleteTask(value.id)}}>
+                  <DeleteIcon />
+                </IconButton>
+              </ListItemSecondaryAction>
+            </ListItem>
+          ))}
+          </List>
+        </Paper>
+      </div>
     </div>
   );
 }
